@@ -57,6 +57,7 @@ func main() {
 		api.GET("/rooms/:id", controllers.GetRoom)
 		api.PUT("/rooms/:id", controllers.UpdateRoom)
 		api.DELETE("/rooms/:id", controllers.DeleteRoom)
+		api.GET("/rooms/:id/unread", controllers.GetUnreadCount)
 
 		// Message routes
 		api.GET("/messages", controllers.GetMessages)

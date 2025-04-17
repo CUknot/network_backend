@@ -83,3 +83,33 @@ func CreateMessage(c *gin.Context) {
 		"data":    message,
 	})
 }
+
+func GetUnreadCount(c *gin.Context) {
+	userID := c.MustGet("userID").(uint)
+
+	roomIDStr := c.Param("id")
+	roomIDUint64, err := strconv.ParseUint(roomIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID format"})
+		return
+	}
+	roomID := uint(roomIDUint64)
+
+	// Check if user is a member of the room
+	var roomUser models.RoomUser
+	if err := database.DB.Where("room_id = ? AND user_id = ?", roomID, userID).
+		First(&roomUser).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this room"})
+		return
+	}
+
+	var unreadCount int64
+	if err := database.DB.Model(&models.Message{}).
+		Where("room_id = ? AND created_at > ?", roomID, roomUser.LastReadAt).
+		Count(&unreadCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count unread messages"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"unread_count": unreadCount})
+}

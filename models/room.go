@@ -15,7 +15,8 @@ type Room struct {
 }
 
 type RoomUser struct {
-	RoomID    uint      `gorm:"primaryKey" json:"room_id"`
-	UserID    uint      `gorm:"primaryKey" json:"user_id"`
-	CreatedAt time.Time `json:"created_at"`
+	RoomID     uint      `gorm:"primaryKey" json:"room_id"`
+	UserID     uint      `gorm:"primaryKey" json:"user_id"`
+	CreatedAt  time.Time `json:"created_at"`
+	LastReadAt time.Time `json:"last_read_at"`
 }

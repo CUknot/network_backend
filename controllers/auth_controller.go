@@ -101,6 +101,7 @@ func Login(c *gin.Context) {
 		"user": gin.H{
 			"id":       user.ID,
 			"username": user.Username,
+			"tag":      user.Tag,
 			"email":    user.Email,
 		},
 		"token": token,
