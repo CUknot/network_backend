@@ -7,7 +7,6 @@ import (
 	"github.com/CUknot/network_backend/controllers"
 	"github.com/CUknot/network_backend/database"
 	"github.com/CUknot/network_backend/docs"
-	"github.com/CUknot/network_backend/middleware"
 	"github.com/CUknot/network_backend/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -76,7 +75,14 @@ func main() {
 
 	// Protected routes
 	api := router.Group("/api")
-	api.Use(middleware.JWTAuth())
+	// api.Use(middleware.JWTAuth())
+	
+	//TemporaryAuth
+	api.Use(func(c *gin.Context) {
+		c.Set("userID", uint(0))   // pretend every request is from user #0
+		c.Next()
+	})
+
 	{
 		// Room routes
 		api.GET("/rooms", controllers.GetRooms)
