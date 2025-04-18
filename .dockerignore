@@ -1,0 +1,6 @@
+# Ignore ไฟล์ที่ไม่ควรเข้าไปใน Docker Image
+.env
+.git
+.gitignore
+tmp/
+build/

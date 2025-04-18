@@ -6,12 +6,25 @@ import (
 
 	"github.com/CUknot/network_backend/controllers"
 	"github.com/CUknot/network_backend/database"
+	"github.com/CUknot/network_backend/docs"
 	"github.com/CUknot/network_backend/middleware"
 	"github.com/CUknot/network_backend/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// @title           Chat API
+// @version         1.0
+// @description     API Server for Chat Application
+// @host            localhost:8080
+// @BasePath        /
+// @schemes         http
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 func main() {
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
@@ -21,6 +34,17 @@ func main() {
 	// Initialize database
 	database.Connect()
 	database.Migrate()
+
+	// Set up Swagger info
+	docs.SwaggerInfo.Title = "Chat API"
+	docs.SwaggerInfo.Description = "API Server for Chat Application"
+	docs.SwaggerInfo.Version = "1.0"
+	docs.SwaggerInfo.Host = "localhost:" + os.Getenv("PORT")
+	if docs.SwaggerInfo.Host == "localhost:" {
+		docs.SwaggerInfo.Host = "localhost:8080"
+	}
+	docs.SwaggerInfo.BasePath = "/"
+	docs.SwaggerInfo.Schemes = []string{"http"}
 
 	// Set up router
 	router := gin.Default()
@@ -39,6 +63,9 @@ func main() {
 
 		c.Next()
 	})
+
+	// Swagger documentation
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Authentication routes
 	auth := router.Group("/api")
@@ -62,6 +89,12 @@ func main() {
 		// Message routes
 		api.GET("/messages", controllers.GetMessages)
 		api.POST("/messages", controllers.CreateMessage)
+
+		// Invite routes
+		api.GET("/invites/pending", controllers.GetPendingInvites)
+		api.GET("/invites/sent", controllers.GetSentInvites)
+		api.POST("/invites", controllers.SendInvite)
+		api.POST("/invites/respond", controllers.RespondToInvite)
 	}
 
 	// WebSocket route
@@ -74,6 +107,7 @@ func main() {
 	}
 
 	log.Printf("Server running on port %s", port)
+	log.Printf("Swagger documentation available at http://localhost:%s/swagger/index.html", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

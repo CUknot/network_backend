@@ -69,21 +69,8 @@ func (c *Client) readPump() {
 			continue
 		}
 
-		switch msg.Type {
-		case "join_room":
-			if roomID, ok := msg.Payload.(string); ok {
-				roomIDUint := parseRoomID(roomID)
-				c.joinRoom(roomIDUint)
-			}
-		case "leave_room":
-			if roomID, ok := msg.Payload.(string); ok {
-				roomIDUint := parseRoomID(roomID)
-				c.leaveRoom(roomIDUint)
-			}
-		case "message":
-			// Handle message in the hub
-			c.hub.broadcast <- message
-		}
+		// Use the message handler to process the message
+		HandleIncomingMessage(c, message)
 	}
 }
 

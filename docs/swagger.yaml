@@ -1,0 +1,729 @@
+basePath: /
+definitions:
+  controllers.CreateMessageInput:
+    properties:
+      content:
+        example: Hello, everyone!
+        type: string
+      room_id:
+        example: 1
+        type: integer
+    required:
+    - content
+    - room_id
+    type: object
+  controllers.CreateRoomInput:
+    properties:
+      name:
+        example: General Chat
+        type: string
+      user_ids:
+        items:
+          type: integer
+        type: array
+    required:
+    - name
+    type: object
+  controllers.LoginInput:
+    properties:
+      email:
+        example: john@example.com
+        type: string
+      password:
+        example: password123
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  controllers.RegisterInput:
+    properties:
+      email:
+        example: john@example.com
+        type: string
+      password:
+        example: password123
+        minLength: 6
+        type: string
+      username:
+        example: johndoe
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  controllers.RespondInviteInput:
+    properties:
+      action:
+        enum:
+        - accept
+        - reject
+        example: accept
+        type: string
+      invite_id:
+        example: 1
+        type: integer
+    required:
+    - action
+    - invite_id
+    type: object
+  controllers.SendInviteInput:
+    properties:
+      room_id:
+        example: 1
+        type: integer
+      username:
+        example: johndoe
+        type: string
+    required:
+    - room_id
+    - username
+    type: object
+  controllers.UpdateRoomInput:
+    properties:
+      name:
+        example: Updated Chat Room
+        type: string
+      user_ids:
+        items:
+          type: integer
+        type: array
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API Server for Chat Application
+  title: Chat API
+  version: "1.0"
+paths:
+  /api/invites:
+    post:
+      consumes:
+      - application/json
+      description: Invites a user to join a chat room
+      parameters:
+      - description: Invite Creation
+        in: body
+        name: invite
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.SendInviteInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Invitation sent successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Send an invitation to a user
+      tags:
+      - invites
+  /api/invites/pending:
+    get:
+      consumes:
+      - application/json
+      description: Returns all pending invitations for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of pending invites
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get pending invites for the authenticated user
+      tags:
+      - invites
+  /api/invites/respond:
+    post:
+      consumes:
+      - application/json
+      description: Accept or reject an invitation to join a chat room
+      parameters:
+      - description: Invitation Response
+        in: body
+        name: response
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RespondInviteInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Response processed successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Invitation not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Respond to an invitation
+      tags:
+      - invites
+  /api/invites/sent:
+    get:
+      consumes:
+      - application/json
+      description: Returns all invitations sent by the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of sent invites
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get invites sent by the authenticated user
+      tags:
+      - invites
+  /api/login:
+    post:
+      consumes:
+      - application/json
+      description: Login with email and password
+      parameters:
+      - description: User Login
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid credentials
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Login a user
+      tags:
+      - auth
+  /api/messages:
+    get:
+      consumes:
+      - application/json
+      description: Returns all messages for a specific chat room
+      parameters:
+      - description: Room ID
+        in: query
+        name: room_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of messages
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid room ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get all messages for a room
+      tags:
+      - messages
+    post:
+      consumes:
+      - application/json
+      description: Creates a new message in a chat room
+      parameters:
+      - description: Message Creation
+        in: body
+        name: message
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateMessageInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Message sent successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new message
+      tags:
+      - messages
+  /api/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user with username, email and password
+      parameters:
+      - description: User Registration
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register a new user
+      tags:
+      - auth
+  /api/rooms:
+    get:
+      consumes:
+      - application/json
+      description: Returns all chat rooms that the authenticated user is a member
+        of
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of rooms
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get all rooms for the authenticated user
+      tags:
+      - rooms
+    post:
+      consumes:
+      - application/json
+      description: Creates a new chat room with the authenticated user as a member
+      parameters:
+      - description: Room Creation
+        in: body
+        name: room
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateRoomInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Room created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new chat room
+      tags:
+      - rooms
+  /api/rooms/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a room and all its messages
+      parameters:
+      - description: Room ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Room deleted successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid room ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Room not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a room
+      tags:
+      - rooms
+    get:
+      consumes:
+      - application/json
+      description: Returns details of a specific chat room
+      parameters:
+      - description: Room ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Room details
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid room ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Room not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get details of a specific room
+      tags:
+      - rooms
+    put:
+      consumes:
+      - application/json
+      description: Updates a room's name and/or members
+      parameters:
+      - description: Room ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Room Update
+        in: body
+        name: room
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.UpdateRoomInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Room updated successfully
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Invalid input
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a room's details
+      tags:
+      - rooms
+  /api/rooms/{id}/unread:
+    get:
+      consumes:
+      - application/json
+      description: Returns the number of unread messages in a room
+      parameters:
+      - description: Room ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Unread message count
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "400":
+          description: Invalid room ID
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Server error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get unread message count for a room
+      tags:
+      - rooms
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
