@@ -63,33 +63,15 @@ func (h *Hub) Run() {
 				h.roomsMux.Unlock()
 			}
 		case message := <-h.broadcast:
-			// Parse the message to determine which room to broadcast to
-			var msg Message
-			if err := json.Unmarshal(message, &msg); err != nil {
-				log.Printf("error unmarshaling broadcast message: %v", err)
-				continue
-			}
-
-			// Handle message based on type
-			if msg.Type == "message" {
-				// Extract room ID from payload
-				var payload struct {
-					RoomID uint `json:"room_id"`
+			// The message is already processed and formatted by HandleIncomingMessage
+			// We just need to broadcast it to all clients
+			for client := range h.clients {
+				select {
+				case client.send <- message:
+				default:
+					close(client.send)
+					delete(h.clients, client)
 				}
-
-				payloadBytes, err := json.Marshal(msg.Payload)
-				if err != nil {
-					log.Printf("error marshaling payload: %v", err)
-					continue
-				}
-
-				if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-					log.Printf("error unmarshaling payload: %v", err)
-					continue
-				}
-
-				// Broadcast to specific room
-				h.broadcastToRoom(payload.RoomID, message)
 			}
 		}
 	}
@@ -140,6 +122,11 @@ func (h *Hub) broadcastToRoom(roomID uint, message []byte) {
 
 // BroadcastToRoom sends a message to all clients in a room
 func BroadcastToRoom(roomID uint, msgType string, payload interface{}) {
+	if hub == nil {
+		log.Printf("Error: hub is not initialized")
+		return
+	}
+
 	msg := Message{
 		Type:    msgType,
 		Payload: payload,
@@ -147,7 +134,7 @@ func BroadcastToRoom(roomID uint, msgType string, payload interface{}) {
 
 	msgBytes, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("error marshaling message: %v", err)
+		log.Printf("Error marshaling message: %v", err)
 		return
 	}
 
