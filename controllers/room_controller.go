@@ -23,16 +23,43 @@ type UpdateRoomInput struct {
 func GetRooms(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
+	var roomUsers []models.RoomUser
+	if err := database.DB.Where("user_id = ?", userID).Find(&roomUsers).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch room user data"})
+		return
+	}
+
+	roomIDs := make([]uint, 0, len(roomUsers))
+	lastReadMap := make(map[uint]models.RoomUser)
+	for _, ru := range roomUsers {
+		roomIDs = append(roomIDs, ru.RoomID)
+		lastReadMap[ru.RoomID] = ru
+	}
+
 	var rooms []models.Room
-	if err := database.DB.Joins("JOIN room_users ON room_users.room_id = rooms.id").
-		Where("room_users.user_id = ?", userID).
-		Preload("Users").
-		Find(&rooms).Error; err != nil {
+	if err := database.DB.Preload("Users").Where("id IN ?", roomIDs).Find(&rooms).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rooms"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"rooms": rooms})
+	// Build the response with lastReadAt and unreadCount
+	response := []gin.H{}
+	for _, room := range rooms {
+		lastRead := lastReadMap[room.ID].LastReadAt
+
+		var unreadCount int64
+		database.DB.Model(&models.Message{}).
+			Where("room_id = ? AND created_at > ?", room.ID, lastRead).
+			Count(&unreadCount)
+
+		response = append(response, gin.H{
+			"room":        room,
+			"lastReadAt":  lastRead,
+			"unreadCount": unreadCount,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"rooms": response})
 }
 
 // CreateRoom creates a new chat room
@@ -94,7 +121,7 @@ func GetRoom(c *gin.Context) {
 		return
 	}
 
-	// Check if user is a member of the room
+	// Get RoomUser for LastReadAt
 	var roomUser models.RoomUser
 	if err := database.DB.Where("room_id = ? AND user_id = ?", roomID, userID).First(&roomUser).Error; err != nil {
 		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this room"})
@@ -107,7 +134,17 @@ func GetRoom(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"room": room})
+	// Count unread messages
+	var unreadCount int64
+	database.DB.Model(&models.Message{}).
+		Where("room_id = ? AND created_at > ?", roomID, roomUser.LastReadAt).
+		Count(&unreadCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"room":        room,
+		"lastReadAt":  roomUser.LastReadAt,
+		"unreadCount": unreadCount,
+	})
 }
 
 // UpdateRoom updates a room's details
