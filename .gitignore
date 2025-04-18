@@ -3,7 +3,7 @@ docker-compose*.yaml
 go.mod
 go.sum
 
-.env
+*.env
 .env.development
 tmp
 *.db
