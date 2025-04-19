@@ -11,11 +11,24 @@ import (
 )
 
 type CreateMessageInput struct {
-	Content string `json:"content" binding:"required"`
-	RoomID  uint   `json:"room_id" binding:"required"`
+	Content string `json:"content" binding:"required" example:"Hello, everyone!"`
+	RoomID  uint   `json:"room_id" binding:"required" example:"1"`
 }
 
-// GetMessages returns all messages for a specific room
+// GetMessages godoc
+// @Summary Get all messages for a room
+// @Description Returns all messages for a specific chat room
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param room_id query int true "Room ID"
+// @Success 200 {object} map[string]interface{} "List of messages"
+// @Failure 400 {object} map[string]string "Invalid room ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 500 {object} map[string]string "Server error"
+// @Router /api/messages [get]
 func GetMessages(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 	roomID, err := strconv.ParseUint(c.Query("room_id"), 10, 32)
@@ -43,7 +56,20 @@ func GetMessages(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"messages": messages})
 }
 
-// CreateMessage creates a new message
+// CreateMessage godoc
+// @Summary Create a new message
+// @Description Creates a new message in a chat room
+// @Tags messages
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param message body CreateMessageInput true "Message Creation"
+// @Success 201 {object} map[string]interface{} "Message sent successfully"
+// @Failure 400 {object} map[string]string "Invalid input"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 500 {object} map[string]string "Server error"
+// @Router /api/messages [post]
 func CreateMessage(c *gin.Context) {
 	userID := c.MustGet("userID").(uint)
 
@@ -82,34 +108,4 @@ func CreateMessage(c *gin.Context) {
 		"message": "Message sent successfully",
 		"data":    message,
 	})
-}
-
-func GetUnreadCount(c *gin.Context) {
-	userID := c.MustGet("userID").(uint)
-
-	roomIDStr := c.Param("id")
-	roomIDUint64, err := strconv.ParseUint(roomIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID format"})
-		return
-	}
-	roomID := uint(roomIDUint64)
-
-	// Check if user is a member of the room
-	var roomUser models.RoomUser
-	if err := database.DB.Where("room_id = ? AND user_id = ?", roomID, userID).
-		First(&roomUser).Error; err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this room"})
-		return
-	}
-
-	var unreadCount int64
-	if err := database.DB.Model(&models.Message{}).
-		Where("room_id = ? AND created_at > ?", roomID, roomUser.LastReadAt).
-		Count(&unreadCount).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count unread messages"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"unread_count": unreadCount})
 }
