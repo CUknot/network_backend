@@ -41,7 +41,7 @@ func main() {
 	docs.SwaggerInfo.Version = "1.0"
 	docs.SwaggerInfo.Host = "localhost:" + os.Getenv("PORT")
 	if docs.SwaggerInfo.Host == "localhost:" {
-		docs.SwaggerInfo.Host = "localhost:8080"
+		docs.SwaggerInfo.Host = "localhost:5000"
 	}
 	docs.SwaggerInfo.BasePath = "/"
 	docs.SwaggerInfo.Schemes = []string{"http"}
@@ -78,6 +78,11 @@ func main() {
 	api := router.Group("/api")
 	api.Use(middleware.JWTAuth())
 	{
+		// User routes
+		api.GET("/users", controllers.SearchUsers)
+		api.GET("/users/me", controllers.GetCurrentUser)
+		api.GET("/users/:id", controllers.GetUserProfile)
+
 		// Room routes
 		api.GET("/rooms", controllers.GetRooms)
 		api.POST("/rooms", controllers.CreateRoom)
@@ -85,6 +90,7 @@ func main() {
 		api.PUT("/rooms/:id", controllers.UpdateRoom)
 		api.DELETE("/rooms/:id", controllers.DeleteRoom)
 		api.GET("/rooms/:id/unread", controllers.GetUnreadCount)
+		api.POST("/rooms/set-activate-room", controllers.SetActivateRoom)
 
 		// Message routes
 		api.GET("/messages", controllers.GetMessages)
@@ -103,7 +109,7 @@ func main() {
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "5000"
 	}
 
 	log.Printf("Server running on port %s", port)

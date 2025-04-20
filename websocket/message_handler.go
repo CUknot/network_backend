@@ -3,7 +3,6 @@ package websocket
 import (
 	"encoding/json"
 	"log"
-	"time"
 
 	"github.com/CUknot/network_backend/database"
 	"github.com/CUknot/network_backend/models"
@@ -51,8 +50,8 @@ func HandleIncomingMessage(client *Client, messageBytes []byte) {
 			roomIDUint := parseRoomID(roomID)
 			client.joinRoom(roomIDUint)
 
-			// Update last read timestamp for this room
-			updateLastReadTime(client.userID, roomIDUint)
+			// We no longer update LastReadAt when joining a room
+			// Instead, it will be updated when the active room changes
 		}
 	case "leave_room":
 		if roomID, ok := msg.Payload.(string); ok {
@@ -126,22 +125,5 @@ func HandleIncomingMessage(client *Client, messageBytes []byte) {
 		if roomID, ok := msg.Payload.(string); ok {
 			HandleRejectInvite(client, roomID)
 		}
-	}
-}
-
-// updateLastReadTime updates the last read timestamp for a user in a room
-func updateLastReadTime(userID, roomID uint) {
-	var roomUser models.RoomUser
-	result := database.DB.Where("user_id = ? AND room_id = ?", userID, roomID).First(&roomUser)
-
-	if result.Error != nil {
-		log.Printf("Error finding room user: %v", result.Error)
-		return
-	}
-
-	// Update last read time
-	roomUser.LastReadAt = time.Now()
-	if err := database.DB.Save(&roomUser).Error; err != nil {
-		log.Printf("Error updating last read time: %v", err)
 	}
 }
