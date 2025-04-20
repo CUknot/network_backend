@@ -162,6 +162,7 @@ func HandleRejectInvite(client *Client, roomIDStr string) {
 
 // Helper functions
 
+// notifyUserOfInvite sends a notification to a user about a new invitation
 func notifyUserOfInvite(userID uint, invite models.InviteRequest) {
 	// Find the client for this user
 	for client := range hub.clients {
@@ -185,6 +186,7 @@ func notifyUserOfInvite(userID uint, invite models.InviteRequest) {
 	}
 }
 
+// notifyRoomOfNewMember notifies all members of a room that a new user has joined
 func notifyRoomOfNewMember(roomID uint, userID uint) {
 	// Get user details
 	var user models.User
@@ -208,6 +210,7 @@ func notifyRoomOfNewMember(roomID uint, userID uint) {
 	hub.broadcastToRoom(roomID, notificationBytes)
 }
 
+// notifyInviterOfRejection notifies the inviter that their invitation was rejected
 func notifyInviterOfRejection(invite models.InviteRequest) {
 	// Find the client for the inviter
 	for client := range hub.clients {
@@ -230,6 +233,7 @@ func notifyInviterOfRejection(invite models.InviteRequest) {
 	}
 }
 
+// sendErrorToClient sends an error message to a client
 func sendErrorToClient(client *Client, errorMessage string) {
 	errorMsg := Message{
 		Type: "error",
@@ -242,6 +246,7 @@ func sendErrorToClient(client *Client, errorMessage string) {
 	client.send <- errorBytes
 }
 
+// sendInviteConfirmation sends a confirmation message to the inviter
 func sendInviteConfirmation(client *Client, invite models.InviteRequest) {
 	confirmation := Message{
 		Type: "invite_sent",
@@ -257,6 +262,7 @@ func sendInviteConfirmation(client *Client, invite models.InviteRequest) {
 	client.send <- confirmationBytes
 }
 
+// sendRoomJoinConfirmation sends a confirmation message to a user who joined a room
 func sendRoomJoinConfirmation(client *Client, room models.Room) {
 	confirmation := Message{
 		Type:    "room_joined",
@@ -267,6 +273,7 @@ func sendRoomJoinConfirmation(client *Client, room models.Room) {
 	client.send <- confirmationBytes
 }
 
+// sendRejectConfirmation sends a confirmation message to a user who rejected an invitation
 func sendRejectConfirmation(client *Client, invite models.InviteRequest) {
 	confirmation := Message{
 		Type: "invite_rejected_confirmation",
