@@ -190,6 +190,7 @@ func CreateRoom(c *gin.Context) {
 	room := models.Room{
 		Name:      input.Name,
 		CreatedBy: userID,
+		Type:      input.Type, // Set the room type
 	}
 
 	if err := database.DB.Create(&room).Error; err != nil {
@@ -208,7 +209,7 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
-	// Add other users to room if provided
+	// Add other users to room if provided (for both direct and group)
 	for _, id := range input.UserIDs {
 		if id == userID {
 			continue // Skip creator as they're already added
