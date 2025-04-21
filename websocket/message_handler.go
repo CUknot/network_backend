@@ -51,8 +51,8 @@ func HandleIncomingMessage(client *Client, messageBytes []byte) {
 			roomIDUint := parseRoomID(roomID)
 			client.joinRoom(roomIDUint)
 
-			// Update last read timestamp for this room
-			updateLastReadTime(client.userID, roomIDUint)
+			// We no longer update LastReadAt when joining a room
+			// Instead, it will be updated when the active room changes
 		}
 	case "leave_room":
 		if roomID, ok := msg.Payload.(string); ok {

@@ -1,8 +1,12 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
+	"reflect"
+	"sort"
 	"strconv"
+	"time"
 
 	"github.com/CUknot/network_backend/database"
 	"github.com/CUknot/network_backend/models"
@@ -10,13 +14,18 @@ import (
 )
 
 type CreateRoomInput struct {
-	Name    string `json:"name" binding:"required" example:"General Chat"`
-	UserIDs []uint `json:"user_ids"`
+	Name    string `json:"name"`                    // optional if type is "direct"
+	Type    string `json:"type" binding:"required"` // "chat" or "direct"
+	UserIDs []uint `json:"user_ids" binding:"required"`
 }
 
 type UpdateRoomInput struct {
 	Name    string `json:"name" example:"Updated Chat Room"`
-	UserIDs []uint `json:"user_ids"`
+	UserIDs []uint `json:"user_ids" example:"[2,3,4,5]"`
+}
+
+type SetActiveRoomInput struct {
+	RoomID uint `json:"room_id" binding:"required" example:"1"`
 }
 
 // GetRooms godoc
@@ -62,14 +71,81 @@ func GetRooms(c *gin.Context) {
 			Where("room_id = ? AND created_at > ?", room.ID, lastRead).
 			Count(&unreadCount)
 
+		roomName := room.Name
+		if room.Type == "direct" {
+			for _, u := range room.Users {
+				if u.ID != userID {
+					roomName = u.Username
+					break
+				}
+			}
+		}
+
 		response = append(response, gin.H{
-			"room":        room,
+			"room": gin.H{
+				"id":         room.ID,
+				"name":       roomName,
+				"type":       room.Type,
+				"created_by": room.CreatedBy,
+				"created_at": room.CreatedAt,
+				"updated_at": room.UpdatedAt,
+				"users":      room.Users,
+			},
 			"lastReadAt":  lastRead,
 			"unreadCount": unreadCount,
 		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"rooms": response})
+}
+
+func RoomWithUsersExists(userIDs []uint) (bool, *models.Room, error) {
+	var roomIDs []uint
+
+	// Find all room_ids with the same number of users
+	if err := database.DB.
+		Table("room_users").
+		Select("room_id").
+		Group("room_id").
+		Having("COUNT(user_id) = ?", len(userIDs)).
+		Find(&roomIDs).Error; err != nil {
+		return false, nil, err
+	}
+
+	// Normalize input user IDs (deduplicate + sort)
+	userIDSet := make(map[uint]bool)
+	for _, id := range userIDs {
+		userIDSet[id] = true
+	}
+	var normalizedInput []uint
+	for id := range userIDSet {
+		normalizedInput = append(normalizedInput, id)
+	}
+	sort.Slice(normalizedInput, func(i, j int) bool { return normalizedInput[i] < normalizedInput[j] })
+
+	// Check each candidate room
+	for _, roomID := range roomIDs {
+		var roomUserIDs []uint
+		if err := database.DB.
+			Table("room_users").
+			Where("room_id = ?", roomID).
+			Pluck("user_id", &roomUserIDs).Error; err != nil {
+			return false, nil, err
+		}
+
+		sort.Slice(roomUserIDs, func(i, j int) bool { return roomUserIDs[i] < roomUserIDs[j] })
+
+		if reflect.DeepEqual(normalizedInput, roomUserIDs) {
+			// Found matching room
+			var room models.Room
+			if err := database.DB.First(&room, roomID).Error; err != nil {
+				return false, nil, err
+			}
+			return true, &room, nil
+		}
+	}
+
+	return false, nil, nil
 }
 
 // CreateRoom godoc
@@ -94,6 +170,22 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
+	if input.Type == "direct" {
+		// Check if a room with the same users already exists
+		exists, room, err := RoomWithUsersExists(input.UserIDs)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing rooms"})
+			return
+		}
+		if exists {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Room already exists",
+				"room":    room,
+			})
+			return
+		}
+	}
+
 	// Create room
 	room := models.Room{
 		Name:      input.Name,
@@ -107,8 +199,9 @@ func CreateRoom(c *gin.Context) {
 
 	// Add creator to room
 	roomUser := models.RoomUser{
-		RoomID: room.ID,
-		UserID: userID,
+		RoomID:     room.ID,
+		UserID:     userID,
+		LastReadAt: time.Now(),
 	}
 	if err := database.DB.Create(&roomUser).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user to room"})
@@ -122,8 +215,9 @@ func CreateRoom(c *gin.Context) {
 		}
 
 		roomUser := models.RoomUser{
-			RoomID: room.ID,
-			UserID: id,
+			RoomID:     room.ID,
+			UserID:     id,
+			LastReadAt: time.Now(),
 		}
 		database.DB.Create(&roomUser)
 	}
@@ -242,8 +336,9 @@ func UpdateRoom(c *gin.Context) {
 			}
 
 			roomUser := models.RoomUser{
-				RoomID: uint(roomID),
-				UserID: id,
+				RoomID:     uint(roomID),
+				UserID:     id,
+				LastReadAt: time.Now(),
 			}
 			database.DB.Create(&roomUser)
 		}
@@ -341,6 +436,20 @@ func GetUnreadCount(c *gin.Context) {
 		return
 	}
 
+	// Get user to check active room
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user data"})
+		return
+	}
+
+	// If this room is the user's active room, return 0 unread messages
+	if user.ActivateRoomID != nil && *user.ActivateRoomID == roomID {
+		c.JSON(http.StatusOK, gin.H{"unread_count": 0})
+		return
+	}
+
+	// Otherwise, count unread messages as usual
 	var unreadCount int64
 	if err := database.DB.Model(&models.Message{}).
 		Where("room_id = ? AND created_at > ?", roomID, roomUser.LastReadAt).
@@ -350,4 +459,67 @@ func GetUnreadCount(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"unread_count": unreadCount})
+}
+
+// SetActivateRoom godoc
+// @Summary Set the active room for a user
+// @Description Updates the user's active room and sets last read time for previous room
+// @Tags rooms
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param room body SetActiveRoomInput true "Active Room"
+// @Success 200 {object} map[string]interface{} "Active room set successfully"
+// @Failure 400 {object} map[string]string "Invalid input"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 500 {object} map[string]string "Server error"
+// @Router /api/rooms/set-activate-room [post]
+func SetActivateRoom(c *gin.Context) {
+	userID := c.MustGet("userID").(uint)
+
+	var input SetActiveRoomInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if user is a member of the new room
+	var newRoomUser models.RoomUser
+	if err := database.DB.Where("room_id = ? AND user_id = ?", input.RoomID, userID).
+		First(&newRoomUser).Error; err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You don't have access to this room"})
+		return
+	}
+
+	// Get current user data
+	var user models.User
+	if err := database.DB.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user data"})
+		return
+	}
+
+	// Update LastReadAt for the previous room if it exists
+	if user.ActivateRoomID != nil && *user.ActivateRoomID != input.RoomID {
+		var previousRoomUser models.RoomUser
+		if err := database.DB.Where("room_id = ? AND user_id = ?", *user.ActivateRoomID, userID).
+			First(&previousRoomUser).Error; err == nil {
+			previousRoomUser.LastReadAt = time.Now()
+			if err := database.DB.Save(&previousRoomUser).Error; err != nil {
+				// Log error but continue
+				log.Printf("Error updating last read time for previous room: %v", err)
+			}
+		}
+	}
+
+	// Update user's active room
+	if err := database.DB.Model(&user).Update("activate_room_id", input.RoomID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update active room"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Active room set successfully",
+		"room_id": input.RoomID,
+	})
 }
