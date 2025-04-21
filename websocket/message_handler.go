@@ -3,6 +3,7 @@ package websocket
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/CUknot/network_backend/database"
 	"github.com/CUknot/network_backend/models"
@@ -119,11 +120,79 @@ func HandleIncomingMessage(client *Client, messageBytes []byte) {
 		// Extract room ID from payload
 		if roomID, ok := msg.Payload.(string); ok {
 			HandleAcceptInvite(client, roomID)
+			log.Printf("Invite accepted")
 		}
 	case "reject_invite":
 		// Extract room ID from payload
 		if roomID, ok := msg.Payload.(string); ok {
 			HandleRejectInvite(client, roomID)
+			log.Printf("Invite rejected")
+		}
+	case "status":
+		if status, ok := msg.Payload.(string); ok {
+			HandleStatus(client, status)
+		}
+	}
+}
+
+// updateLastReadTime updates the last read timestamp for a user in a room
+func updateLastReadTime(userID, roomID uint) {
+	var roomUser models.RoomUser
+	result := database.DB.Where("user_id = ? AND room_id = ?", userID, roomID).First(&roomUser)
+
+	if result.Error != nil {
+		log.Printf("Error finding room user: %v", result.Error)
+		return
+	}
+
+	// Update last read time
+	roomUser.LastReadAt = time.Now()
+	if err := database.DB.Save(&roomUser).Error; err != nil {
+		log.Printf("Error updating last read time: %v", err)
+	}
+}
+
+func HandleStatus(client *Client, status string) {
+	log.Printf("User %d updating status to: %s", client.userID, status)
+
+	client.statusMu.Lock()
+	client.status = status
+	client.statusMu.Unlock()
+
+	client.hub.roomsMux.RLock()
+	defer client.hub.roomsMux.RUnlock()
+
+	for roomID, clients := range client.hub.rooms {
+		if _, ok := clients[client]; ok {
+			log.Printf("User %d is in room %d, broadcasting status update", client.userID, roomID)
+
+			statusMsg := Message{
+				Type: "status_update",
+				Payload: map[string]interface{}{
+					"user_id": client.userID,
+					"status":  status,
+					"room_id": roomID,
+				},
+			}
+
+			msgBytes, err := json.Marshal(statusMsg)
+			if err != nil {
+				log.Printf("Error marshaling status update: %v", err)
+				continue
+			}
+
+			for roomClient := range clients {
+				if roomClient != client {
+					select {
+					case roomClient.send <- msgBytes:
+						log.Printf("Sent status update of user %d to user %d", client.userID, roomClient.userID)
+					default:
+						log.Printf("Client %d send channel is full or closed. Removing from hub.", roomClient.userID)
+						close(roomClient.send)
+						delete(client.hub.clients, roomClient)
+					}
+				}
+			}
 		}
 	}
 }

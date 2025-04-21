@@ -116,5 +116,6 @@ func main() {
 	log.Printf("Swagger documentation available at http://localhost:%s/swagger/index.html", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
+
 	}
 }

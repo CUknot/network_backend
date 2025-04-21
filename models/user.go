@@ -9,10 +9,12 @@ import (
 
 type User struct {
 	ID             uint      `gorm:"primaryKey" json:"id"`
-	Username       string    `gorm:"size:255;not null;unique" json:"username"`
+	Username       string    `gorm:"size:255;not null;index:idx_username_tag,unique" json:"username"`
+	Tag            string    `gorm:"size:4;not null;index:idx_username_tag,unique" json:"tag"`
 	Email          string    `gorm:"size:255;not null;unique" json:"email"`
 	Password       string    `gorm:"size:255;not null" json:"-"`
 	ActivateRoomID *uint     `json:"activate_room_id,omitempty"`
+	Status         string    `json:"status"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
 	Rooms          []Room    `gorm:"many2many:room_users;" json:"-"`
