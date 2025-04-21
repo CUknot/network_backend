@@ -132,7 +132,14 @@ func HandleIncomingMessage(client *Client, messageBytes []byte) {
 		if status, ok := msg.Payload.(string); ok {
 			HandleStatus(client, status)
 		}
+	case "leave_group":
+		if roomID, ok := msg.Payload.(string); ok {
+			roomIDUint := parseRoomID(roomID)
+			client.leaveGroup(roomIDUint)
+			HandleLeaveGroup(client, roomID)
+		}
 	}
+
 }
 
 // updateLastReadTime updates the last read timestamp for a user in a room
@@ -194,5 +201,60 @@ func HandleStatus(client *Client, status string) {
 				}
 			}
 		}
+	}
+}
+
+func HandleLeaveGroup(client *Client, roomIDStr string) {
+	roomID := parseRoomID(roomIDStr)
+
+	// Check if user is part of the room
+	var roomUser models.RoomUser
+	if err := database.DB.
+		Where("room_id = ? AND user_id = ?", roomID, client.userID).
+		First(&roomUser).Error; err != nil {
+		log.Printf("User %d is not in room %d or already removed", client.userID, roomID)
+		sendErrorToClient(client, "You are not a member of this group")
+		return
+	}
+
+	// Remove user from database (room_users table)
+	if err := database.DB.Delete(&roomUser).Error; err != nil {
+		log.Printf("Error removing user %d from room %d: %v", client.userID, roomID, err)
+		sendErrorToClient(client, "Failed to leave group")
+		return
+	}
+
+	// Remove user from WebSocket room
+	client.leaveRoom(roomID)
+	log.Printf("User %d left group %d", client.userID, roomID)
+
+	// Notify others in the room that the user has left
+	leaveMsg := Message{
+		Type: "user_left_group",
+		Payload: map[string]interface{}{
+			"user_id": client.userID,
+			"room_id": roomID,
+		},
+	}
+
+	msgBytes, err := json.Marshal(leaveMsg)
+	if err != nil {
+		log.Printf("Error marshaling leave group message: %v", err)
+		return
+	}
+
+	client.hub.broadcastToRoom(roomID, msgBytes)
+
+	// Optional: Send confirmation back to the user
+	confirmation := Message{
+		Type: "group_left",
+		Payload: map[string]interface{}{
+			"room_id": roomID,
+			"message": "You have successfully left the group",
+		},
+	}
+
+	if response, err := json.Marshal(confirmation); err == nil {
+		client.send <- response
 	}
 }

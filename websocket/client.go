@@ -141,6 +141,46 @@ func (c *Client) inRoom(roomID uint) bool {
 	return c.rooms[roomID]
 }
 
+func (c *Client) leaveGroup(roomID uint) {
+	// Lock client rooms
+	c.roomsMux.Lock()
+	if _, ok := c.rooms[roomID]; ok {
+		delete(c.rooms, roomID)
+	}
+	c.roomsMux.Unlock()
+
+	// Lock hub rooms
+	c.hub.roomsMux.Lock()
+	if clients, ok := c.hub.rooms[roomID]; ok {
+		delete(clients, c)
+
+		// If room becomes empty, delete it
+		if len(clients) == 0 {
+			delete(c.hub.rooms, roomID)
+		}
+	}
+	c.hub.roomsMux.Unlock()
+
+	log.Printf("User %d permanently left group (room) %d", c.userID, roomID)
+
+	// Broadcast leave notification to others
+	leaveMsg := Message{
+		Type: "group_left",
+		Payload: map[string]interface{}{
+			"user_id": c.userID,
+			"room_id": roomID,
+		},
+	}
+	msgBytes, err := json.Marshal(leaveMsg)
+	if err != nil {
+		log.Printf("Error marshaling group leave message: %v", err)
+		return
+	}
+	c.hub.broadcastToRoom(roomID, msgBytes)
+
+	// Optional: Remove from invitation store, DB update, etc.
+}
+
 // parseRoomID converts a string room ID to uint
 func parseRoomID(roomID string) uint {
 	id, err := strconv.ParseUint(roomID, 10, 64)
