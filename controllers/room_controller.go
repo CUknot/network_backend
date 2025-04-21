@@ -173,7 +173,7 @@ func GetRoom(c *gin.Context) {
 	// Count unread messages
 	var unreadCount int64
 	database.DB.Model(&models.Message{}).
-		Where("room_id = ? AND created_at > ?", roomID, roomUser.LastReadAt).
+		Where("room_id = ? AND created_at > ? AND user_id != ?", roomID, roomUser.LastReadAt, userID).
 		Count(&unreadCount)
 
 	c.JSON(http.StatusOK, gin.H{

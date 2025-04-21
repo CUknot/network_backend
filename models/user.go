@@ -13,6 +13,7 @@ type User struct {
 	Tag       string    `gorm:"size:4;not null;index:idx_username_tag,unique" json:"tag"`
 	Email     string    `gorm:"size:255;not null;unique" json:"email"`
 	Password  string    `gorm:"size:255;not null" json:"-"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	Rooms     []Room    `gorm:"many2many:room_users;" json:"-"`

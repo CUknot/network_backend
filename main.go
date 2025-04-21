@@ -95,6 +95,11 @@ func main() {
 		api.GET("/invites/sent", controllers.GetSentInvites)
 		api.POST("/invites", controllers.SendInvite)
 		api.POST("/invites/respond", controllers.RespondToInvite)
+
+		// User routes
+		api.GET("/users", controllers.SearchUsers)
+		api.GET("/users/me", controllers.GetCurrentUser)
+		api.GET("/users/:id", controllers.GetUserProfile)
 	}
 
 	// WebSocket route

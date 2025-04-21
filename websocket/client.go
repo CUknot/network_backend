@@ -32,6 +32,8 @@ type Client struct {
 	userID   uint
 	rooms    map[uint]bool
 	roomsMux sync.RWMutex
+	status   string
+	statusMu sync.RWMutex
 }
 
 // Message represents a websocket message
