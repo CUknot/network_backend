@@ -10,6 +10,7 @@ import (
 
 	"github.com/CUknot/network_backend/database"
 	"github.com/CUknot/network_backend/models"
+	"github.com/CUknot/network_backend/websocket"
 	"github.com/gin-gonic/gin"
 )
 
@@ -590,6 +591,20 @@ func JoinRoom(c *gin.Context) {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join room"})
         return
     }
+	var u models.User
+    if err := database.DB.First(&u, userID).Error; err == nil {
+        websocket.BroadcastToRoom(
+            roomID,
+            "system",
+            map[string]interface{}{
+                "room_id":   roomID,
+                "user_id":   userID,
+                "username":  u.Username,
+                "action":    "join",
+                "timestamp": time.Now().UTC(),
+            },
+        )
+    }
 
     c.Status(http.StatusNoContent)
 }
@@ -630,6 +645,20 @@ func LeaveRoom(c *gin.Context) {
     if err := database.DB.Delete(&ru).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to leave room"})
         return
+    }
+	var u models.User
+    if err := database.DB.First(&u, userID).Error; err == nil {
+        websocket.BroadcastToRoom(
+            roomID,
+            "system",
+            map[string]interface{}{
+                "room_id":   roomID,
+                "user_id":   userID,
+                "username":  u.Username,
+                "action":    "leave",
+                "timestamp": time.Now().UTC(),
+            },
+        )
     }
 
     c.Status(http.StatusNoContent)
