@@ -188,7 +188,8 @@ func CreateRoom(c *gin.Context) {
 
 	// Create room
 	room := models.Room{
-		Name:      input.Name,
+		Name: input.Name,
+		Type: input.Type,
 		CreatedBy: userID,
 	}
 
