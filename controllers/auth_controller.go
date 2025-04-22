@@ -10,18 +10,27 @@ import (
 )
 
 type RegisterInput struct {
-	Username string `json:"username" binding:"required"`
-	Tag      string `json:"tag" binding:"required,len=4"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Username string `json:"username" binding:"required" example:"johndoe"`
+	Email    string `json:"email" binding:"required,email" example:"john@example.com"`
+	Password string `json:"password" binding:"required,min=6" example:"password123"`
 }
 
 type LoginInput struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email" example:"john@example.com"`
+	Password string `json:"password" binding:"required" example:"password123"`
 }
 
-// Register handles user registration
+// Register godoc
+// @Summary Register a new user
+// @Description Register a new user with username, email and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body RegisterInput true "User Registration"
+// @Success 201 {object} map[string]interface{} "User registered successfully"
+// @Failure 400 {object} map[string]string "Invalid input"
+// @Failure 500 {object} map[string]string "Server error"
+// @Router /api/register [post]
 func Register(c *gin.Context) {
 	var input RegisterInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -39,7 +48,6 @@ func Register(c *gin.Context) {
 	// Create new user
 	user := models.User{
 		Username: input.Username,
-		Tag:      input.Tag,
 		Email:    input.Email,
 		Password: input.Password,
 	}
@@ -61,14 +69,24 @@ func Register(c *gin.Context) {
 		"user": gin.H{
 			"id":       user.ID,
 			"username": user.Username,
-			"tag":      user.Tag,
 			"email":    user.Email,
 		},
 		"token": token,
 	})
 }
 
-// Login handles user authentication
+// Login godoc
+// @Summary Login a user
+// @Description Login with email and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body LoginInput true "User Login"
+// @Success 200 {object} map[string]interface{} "Login successful"
+// @Failure 400 {object} map[string]string "Invalid input"
+// @Failure 401 {object} map[string]string "Invalid credentials"
+// @Failure 500 {object} map[string]string "Server error"
+// @Router /api/login [post]
 func Login(c *gin.Context) {
 	var input LoginInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -101,7 +119,6 @@ func Login(c *gin.Context) {
 		"user": gin.H{
 			"id":       user.ID,
 			"username": user.Username,
-			"tag":      user.Tag,
 			"email":    user.Email,
 		},
 		"token": token,

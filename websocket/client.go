@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/CUknot/network_backend/database"
+	"github.com/CUknot/network_backend/models"
 	"github.com/gorilla/websocket"
 )
 
@@ -44,6 +46,40 @@ type Message struct {
 func (c *Client) readPump() {
 	defer func() {
 		c.hub.unregister <- c
+
+		// Fetch the user to get the activate_room_id
+		var user models.User
+		if err := database.DB.First(&user, c.userID).Error; err != nil {
+			log.Printf("Failed to fetch user for disconnect cleanup: %v", err)
+			return
+		}
+
+		if user.ActivateRoomID != nil {
+			// Check if user is a member of the room and update the LastReadAt
+			var roomUser models.RoomUser
+			if err := database.DB.Where("room_id = ? AND user_id = ?", *user.ActivateRoomID, c.userID).
+				First(&roomUser).Error; err != nil {
+				log.Printf("Failed to fetch room user data: %v", err)
+				return
+			}
+
+			// Update LastReadAt for the active room
+			roomUser.LastReadAt = time.Now()
+			if err := database.DB.Save(&roomUser).Error; err != nil {
+				log.Printf("Failed to update LastReadAt: %v", err)
+				return
+			}
+			log.Printf("Updated LastReadAt for user %d in room %d", c.userID, *user.ActivateRoomID)
+		}
+
+		// Set activate_room_id to NULL for the user
+		if err := database.DB.Model(&models.User{}).
+			Where("id = ?", c.userID).
+			Update("activate_room_id", nil).Error; err != nil {
+			log.Printf("Failed to clear active room for user %d: %v", c.userID, err)
+			return
+		}
+
 		c.conn.Close()
 	}()
 
@@ -69,21 +105,8 @@ func (c *Client) readPump() {
 			continue
 		}
 
-		switch msg.Type {
-		case "join_room":
-			if roomID, ok := msg.Payload.(string); ok {
-				roomIDUint := parseRoomID(roomID)
-				c.joinRoom(roomIDUint)
-			}
-		case "leave_room":
-			if roomID, ok := msg.Payload.(string); ok {
-				roomIDUint := parseRoomID(roomID)
-				c.leaveRoom(roomIDUint)
-			}
-		case "message":
-			// Handle message in the hub
-			c.hub.broadcast <- message
-		}
+		// Use the message handler to process the message
+		HandleIncomingMessage(c, message)
 	}
 }
 

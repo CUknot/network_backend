@@ -7,6 +7,7 @@ import (
 type Room struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Name      string    `gorm:"size:255;not null" json:"name"`
+	Type      string    `gorm:"size:10;not null;default:'direct'" json:"type"` // "chat" or "direct"
 	CreatedBy uint      `json:"created_by"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

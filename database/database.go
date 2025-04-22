@@ -54,6 +54,6 @@ func Connect() {
 
 // Migrate automatically migrates the database schema
 func Migrate() {
-	DB.AutoMigrate(&models.User{}, &models.Room{}, &models.Message{}, &models.RoomUser{})
+	DB.AutoMigrate(&models.User{}, &models.Room{}, &models.Message{}, &models.RoomUser{}, &models.InviteRequest{})
 	log.Println("Database migration completed")
 }
