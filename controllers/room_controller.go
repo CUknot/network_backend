@@ -10,6 +10,7 @@ import (
 
 	"github.com/CUknot/network_backend/database"
 	"github.com/CUknot/network_backend/models"
+	"github.com/CUknot/network_backend/websocket"
 	"github.com/gin-gonic/gin"
 )
 
@@ -289,6 +290,22 @@ func GetRoom(c *gin.Context) {
 	})
 }
 
+// GetGroupRooms godoc
+// @Summary Get all group chat rooms
+// @Tags rooms
+// @Produce json
+// @Security BearerAuth
+// @Router /api/rooms/groups [get]
+func GetGroupRooms(c *gin.Context) {
+    var groups []models.Room
+    if err := database.DB.Preload("Users").
+        Where("type = ?", "group").
+        Find(&groups).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch group rooms"})
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{"rooms": groups})
+}
 // UpdateRoom godoc
 // @Summary Update a room's details
 // @Description Updates a room's name and/or members
@@ -535,3 +552,126 @@ func SetActivateRoom(c *gin.Context) {
 		"room_id": input.RoomID,
 	})
 }
+
+// JoinRoom godoc
+// @Summary Join a group chat room
+// @Description Adds the authenticated user to the specified room
+// @Tags rooms
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Room ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid room ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Room not found"
+// @Router /api/rooms/{id}/join [post]
+func JoinRoom(c *gin.Context) {
+    userID := c.MustGet("userID").(uint)
+    roomID64, err := strconv.ParseUint(c.Param("id"), 10, 32)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID"})
+        return
+    }
+    roomID := uint(roomID64)
+
+    // Check room exists
+    var room models.Room
+    if err := database.DB.First(&room, roomID).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+        return
+    }
+
+    // Check user is not already in room
+    var existing models.RoomUser
+    if err := database.DB.
+        Where("room_id = ? AND user_id = ?", roomID, userID).
+        First(&existing).Error; err == nil {
+        c.Status(http.StatusNoContent)
+        return
+    }
+
+    // Create membership
+    ru := models.RoomUser{
+        RoomID:     roomID,
+        UserID:     userID,
+        LastReadAt: time.Now(),
+    }
+    if err := database.DB.Create(&ru).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join room"})
+        return
+    }
+	var u models.User
+    if err := database.DB.First(&u, userID).Error; err == nil {
+        websocket.BroadcastToRoom(
+            roomID,
+            "system",
+            map[string]interface{}{
+                "room_id":   roomID,
+                "user_id":   userID,
+                "username":  u.Username,
+                "action":    "join",
+                "timestamp": time.Now().UTC(),
+            },
+        )
+    }
+
+    c.Status(http.StatusNoContent)
+}
+
+// LeaveRoom godoc
+// @Summary Leave a group chat room
+// @Description Removes the authenticated user from the specified room
+// @Tags rooms
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Room ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid room ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Room not found or not a member"
+// @Router /api/rooms/{id}/leave [post]
+func LeaveRoom(c *gin.Context) {
+    userID := c.MustGet("userID").(uint)
+    roomID64, err := strconv.ParseUint(c.Param("id"), 10, 32)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID"})
+        return
+    }
+    roomID := uint(roomID64)
+
+    // Ensure membership exists
+    var ru models.RoomUser
+    if err := database.DB.
+        Where("room_id = ? AND user_id = ?", roomID, userID).
+        First(&ru).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "You are not a member of this room"})
+        return
+    }
+
+    // Remove membership
+    if err := database.DB.Delete(&ru).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to leave room"})
+        return
+    }
+	var u models.User
+    if err := database.DB.First(&u, userID).Error; err == nil {
+        websocket.BroadcastToRoom(
+            roomID,
+            "system",
+            map[string]interface{}{
+                "room_id":   roomID,
+                "user_id":   userID,
+                "username":  u.Username,
+                "action":    "leave",
+                "timestamp": time.Now().UTC(),
+            },
+        )
+    }
+
+    c.Status(http.StatusNoContent)
+}
+
