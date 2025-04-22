@@ -94,6 +94,7 @@ func main() {
 		api.PUT("/rooms/:id", controllers.UpdateRoom)
 		api.DELETE("/rooms/:id", controllers.DeleteRoom)
 		api.POST("/rooms/:id/join",controllers.JoinRoom)
+		api.POST("/rooms/:id/leave",controllers.LeaveRoom)
 		api.GET("/rooms/:id/unread", controllers.GetUnreadCount)
 		api.POST("/rooms/set-activate-room", controllers.SetActivateRoom)
 

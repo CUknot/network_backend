@@ -594,3 +594,44 @@ func JoinRoom(c *gin.Context) {
     c.Status(http.StatusNoContent)
 }
 
+// LeaveRoom godoc
+// @Summary Leave a group chat room
+// @Description Removes the authenticated user from the specified room
+// @Tags rooms
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Room ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid room ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Room not found or not a member"
+// @Router /api/rooms/{id}/leave [post]
+func LeaveRoom(c *gin.Context) {
+    userID := c.MustGet("userID").(uint)
+    roomID64, err := strconv.ParseUint(c.Param("id"), 10, 32)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID"})
+        return
+    }
+    roomID := uint(roomID64)
+
+    // Ensure membership exists
+    var ru models.RoomUser
+    if err := database.DB.
+        Where("room_id = ? AND user_id = ?", roomID, userID).
+        First(&ru).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "You are not a member of this room"})
+        return
+    }
+
+    // Remove membership
+    if err := database.DB.Delete(&ru).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to leave room"})
+        return
+    }
+
+    c.Status(http.StatusNoContent)
+}
+
