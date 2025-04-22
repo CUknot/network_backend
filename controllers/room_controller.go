@@ -203,7 +203,6 @@ func CreateRoom(c *gin.Context) {
 		Name: input.Name,
 		Type: input.Type,
 		CreatedBy: userID,
-		Type:      input.Type,
 	}
 
 	if err := database.DB.Create(&room).Error; err != nil {
