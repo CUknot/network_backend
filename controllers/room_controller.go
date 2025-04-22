@@ -278,6 +278,22 @@ func GetRoom(c *gin.Context) {
 	})
 }
 
+// GetGroupRooms godoc
+// @Summary Get all group chat rooms
+// @Tags rooms
+// @Produce json
+// @Security BearerAuth
+// @Router /api/rooms/groups [get]
+func GetGroupRooms(c *gin.Context) {
+    var groups []models.Room
+    if err := database.DB.Preload("Users").
+        Where("type = ?", "group").
+        Find(&groups).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch group rooms"})
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{"rooms": groups})
+}
 // UpdateRoom godoc
 // @Summary Update a room's details
 // @Description Updates a room's name and/or members
@@ -524,3 +540,57 @@ func SetActivateRoom(c *gin.Context) {
 		"room_id": input.RoomID,
 	})
 }
+
+// JoinRoom godoc
+// @Summary Join a group chat room
+// @Description Adds the authenticated user to the specified room
+// @Tags rooms
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "Room ID"
+// @Success 204 "No Content"
+// @Failure 400 {object} map[string]string "Invalid room ID"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 403 {object} map[string]string "Forbidden"
+// @Failure 404 {object} map[string]string "Room not found"
+// @Router /api/rooms/{id}/join [post]
+func JoinRoom(c *gin.Context) {
+    userID := c.MustGet("userID").(uint)
+    roomID64, err := strconv.ParseUint(c.Param("id"), 10, 32)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid room ID"})
+        return
+    }
+    roomID := uint(roomID64)
+
+    // Check room exists
+    var room models.Room
+    if err := database.DB.First(&room, roomID).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Room not found"})
+        return
+    }
+
+    // Check user is not already in room
+    var existing models.RoomUser
+    if err := database.DB.
+        Where("room_id = ? AND user_id = ?", roomID, userID).
+        First(&existing).Error; err == nil {
+        c.Status(http.StatusNoContent)
+        return
+    }
+
+    // Create membership
+    ru := models.RoomUser{
+        RoomID:     roomID,
+        UserID:     userID,
+        LastReadAt: time.Now(),
+    }
+    if err := database.DB.Create(&ru).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to join room"})
+        return
+    }
+
+    c.Status(http.StatusNoContent)
+}
+
