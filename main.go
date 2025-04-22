@@ -52,7 +52,7 @@ func main() {
 	// CORS middleware
 	router.Use(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		if origin == "http://localhost:3000" {
+		if origin == "http://192.168.1.37:3000" {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")

@@ -14,9 +14,8 @@ import (
 )
 
 type CreateRoomInput struct {
-	Name    string `json:"name"`                    // optional if type is "direct"
-	Type    string `json:"type" binding:"required"` // "chat" or "direct"
-	UserIDs []uint `json:"user_ids" binding:"required"`
+	Name string `json:"name" binding:"required"` // Name of the other user if direct
+	Type string `json:"type" binding:"required"` // "direct" or "group"
 }
 
 type UpdateRoomInput struct {
@@ -170,9 +169,21 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
+	var userIDs []uint
+
 	if input.Type == "direct" {
+		// Look up the user ID by name
+		var otherUser models.User
+		if err := database.DB.Where("username = ?", input.Name).First(&otherUser).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+
+		// Build userIDs with both participants
+		userIDs = []uint{userID, otherUser.ID}
+
 		// Check if a room with the same users already exists
-		exists, room, err := RoomWithUsersExists(input.UserIDs)
+		exists, room, err := RoomWithUsersExists(userIDs)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing rooms"})
 			return
@@ -186,11 +197,11 @@ func CreateRoom(c *gin.Context) {
 		}
 	}
 
-	// Create room
+	// Create the room
 	room := models.Room{
 		Name:      input.Name,
 		CreatedBy: userID,
-		Type:      input.Type, // Set the room type
+		Type:      input.Type,
 	}
 
 	if err := database.DB.Create(&room).Error; err != nil {
@@ -209,18 +220,17 @@ func CreateRoom(c *gin.Context) {
 		return
 	}
 
-	// Add other users to room if provided (for both direct and group)
-	for _, id := range input.UserIDs {
-		if id == userID {
-			continue // Skip creator as they're already added
+	// Add the other user
+	if input.Type == "direct" {
+		otherUserID := userIDs[1]
+		if otherUserID != userID {
+			roomUser := models.RoomUser{
+				RoomID:     room.ID,
+				UserID:     otherUserID,
+				LastReadAt: time.Now(),
+			}
+			database.DB.Create(&roomUser)
 		}
-
-		roomUser := models.RoomUser{
-			RoomID:     room.ID,
-			UserID:     id,
-			LastReadAt: time.Now(),
-		}
-		database.DB.Create(&roomUser)
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
