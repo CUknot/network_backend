@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"reflect"
@@ -593,15 +594,29 @@ func JoinRoom(c *gin.Context) {
     }
 	var u models.User
     if err := database.DB.First(&u, userID).Error; err == nil {
+        sysMsg := models.Message{
+            Content: fmt.Sprintf("%s has joined the room", u.Username),
+            RoomID:  roomID,
+            UserID:  u.ID,                  // or use a special “system” user ID
+        }
+        if err := database.DB.Create(&sysMsg).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save system message"})
+            return
+        }
+
+        // 2) Broadcast it over WebSocket as a “system” event
         websocket.BroadcastToRoom(
             roomID,
             "system",
             map[string]interface{}{
-                "room_id":   roomID,
-                "user_id":   userID,
-                "username":  u.Username,
-                "action":    "join",
-                "timestamp": time.Now().UTC(),
+                "id":         sysMsg.ID,
+                "room_id":    sysMsg.RoomID,
+                "user_id":    sysMsg.UserID,
+                "username":   u.Username,
+                "content":    sysMsg.Content,
+                "created_at": sysMsg.CreatedAt,
+                "updated_at": sysMsg.UpdatedAt,
+                "action":     "join",
             },
         )
     }
@@ -646,17 +661,30 @@ func LeaveRoom(c *gin.Context) {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to leave room"})
         return
     }
-	var u models.User
+
+    var u models.User
     if err := database.DB.First(&u, userID).Error; err == nil {
+        sysMsg := models.Message{
+            Content: fmt.Sprintf("%s has left the room", u.Username),
+            RoomID:  roomID,
+            UserID:  u.ID,
+        }
+        if err := database.DB.Create(&sysMsg).Error; err != nil {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save system message"})
+            return
+        }
         websocket.BroadcastToRoom(
             roomID,
             "system",
             map[string]interface{}{
-                "room_id":   roomID,
-                "user_id":   userID,
-                "username":  u.Username,
-                "action":    "leave",
-                "timestamp": time.Now().UTC(),
+                "id":         sysMsg.ID,
+                "room_id":    sysMsg.RoomID,
+                "user_id":    sysMsg.UserID,
+                "username":   u.Username,
+                "content":    sysMsg.Content,
+                "created_at": sysMsg.CreatedAt,
+                "updated_at": sysMsg.UpdatedAt,
+                "action":     "leave",
             },
         )
     }
