@@ -49,23 +49,29 @@ func main() {
 	// Set up router
 	router := gin.Default()
 
-// CORS middleware
+	// CORS middleware
 	router.Use(func(c *gin.Context) {
+		envHost := os.Getenv("DB_HOST")
+		if envHost == "" {
+			envHost = "localhost" // fallback
+		}
+		allowedOrigin := "http://" + envHost + ":3000"
+
 		origin := c.Request.Header.Get("Origin")
-		if origin == "http://192.168.1.37:3000" {
+		if origin == allowedOrigin {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
 		}
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
-	if c.Request.Method == "OPTIONS" {
-		c.AbortWithStatus(204)
-		return
-	}
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
 
-	c.Next()
-})
+		c.Next()
+	})
 
 	// Swagger documentation
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
@@ -93,8 +99,8 @@ func main() {
 		api.GET("/rooms/groups", controllers.GetGroupRooms)
 		api.PUT("/rooms/:id", controllers.UpdateRoom)
 		api.DELETE("/rooms/:id", controllers.DeleteRoom)
-		api.POST("/rooms/:id/join",controllers.JoinRoom)
-		api.POST("/rooms/:id/leave",controllers.LeaveRoom)
+		api.POST("/rooms/:id/join", controllers.JoinRoom)
+		api.POST("/rooms/:id/leave", controllers.LeaveRoom)
 		api.GET("/rooms/:id/unread", controllers.GetUnreadCount)
 		api.POST("/rooms/set-activate-room", controllers.SetActivateRoom)
 
