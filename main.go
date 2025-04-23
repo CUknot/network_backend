@@ -51,7 +51,7 @@ func main() {
 
 	// CORS middleware
 	router.Use(func(c *gin.Context) {
-		envHost := os.Getenv("DB_HOST")
+		envHost := os.Getenv("HOST")
 		if envHost == "" {
 			envHost = "localhost" // fallback
 		}

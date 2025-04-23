@@ -33,7 +33,7 @@ func SearchUsers(c *gin.Context) {
 	// Find users with usernames that start with the provided prefix
 	var users []models.User
 	if err := database.DB.Where("username LIKE ?", usernamePrefix+"%").
-		Select("id, username, email, created_at, updated_at").
+		Select("id, username, email, status, created_at, updated_at").
 		Limit(10).
 		Find(&users).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search users"})
